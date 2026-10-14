@@ -213,50 +213,75 @@ export default function BankSoal() {
               </div>
 
               {/* Preview Results */}
-              {soal && !saved && (
-                <div className="space-y-4 pt-4 border-t border-slate-200">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-semibold text-slate-900">Pratinjau Hasil Parsing — <span className="text-blue-700">{soal.length} Soal</span> Dikenali</h3>
-                  </div>
-                  <div className="space-y-3 max-h-[450px] overflow-y-auto pr-1">
-                    {soal.map((s, si) => (
-                      <div key={s.nomor} className="p-3.5 rounded-lg border bg-slate-50 border-slate-200 text-xs space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="font-semibold bg-white text-slate-700 px-2 py-0.5 rounded border border-slate-200 tnum">Soal #{s.nomor}</span>
-                          <span className="text-slate-500 font-medium">{s.mapel} · {s.kelas}</span>
-                        </div>
-                        <p className="font-medium text-slate-900 leading-relaxed">{s.teks}</p>
+              {soal && !saved && (() => {
+                const groupedParsed = soal.reduce((acc, s) => {
+                  const m = s.mapel || 'Umum'
+                  if (!acc[m]) acc[m] = []
+                  acc[m].push(s)
+                  return acc
+                }, {} as Record<string, ParsedSoal[]>)
 
-                        <div className="space-y-1.5 pt-1">
-                          {s.opsi.map((o, oi) => (
-                            <label key={o.label} className="flex items-center gap-2 cursor-pointer select-none">
-                              <input
-                                type="radio"
-                                name={`soal-${s.nomor}`}
-                                checked={o.kunci}
-                                onChange={() => toggleKunci(si, oi)}
-                                className="accent-blue-700 w-3.5 h-3.5"
-                              />
-                              <span className={o.kunci ? 'font-semibold text-emerald-800' : 'text-slate-700'}>
-                                {o.label}. {o.teks}
-                              </span>
-                              {o.kunci && <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded border border-emerald-300 ml-auto">KUNCI</span>}
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                return (
+                  <div className="space-y-4 pt-4 border-t border-slate-200">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-semibold text-slate-900">Pratinjau Hasil Parsing — <span className="text-blue-700">{soal.length} Soal</span> Dikelompokkan per Mata Pelajaran</h3>
+                    </div>
+                    <div className="space-y-6 max-h-[500px] overflow-y-auto pr-1">
+                      {Object.entries(groupedParsed).map(([mapelName, items]) => (
+                        <div key={mapelName} className="space-y-3 bg-slate-50/80 p-4 rounded-lg border border-slate-200">
+                          <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                            <h4 className="font-bold text-slate-900 text-xs flex items-center gap-2">
+                              <span className="w-2.5 h-2.5 rounded-full bg-blue-700"></span>
+                              <span>MAPEL: {mapelName}</span>
+                              <span className="text-[11px] font-medium text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200">{items.length} Soal</span>
+                            </h4>
+                          </div>
+                          <div className="space-y-3">
+                            {items.map((s) => {
+                              const originalIdx = soal.findIndex(orig => orig.nomor === s.nomor && orig.teks === s.teks)
+                              return (
+                                <div key={s.nomor} className="p-3.5 rounded-lg border bg-white border-slate-200 text-xs space-y-2 shadow-xs">
+                                  <div className="flex items-center justify-between">
+                                    <span className="font-semibold bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200 tnum">Soal #{s.nomor}</span>
+                                    <span className="text-slate-500 font-medium">{s.kelas}</span>
+                                  </div>
+                                  <p className="font-medium text-slate-900 leading-relaxed">{s.teks}</p>
 
-                  <button
-                    onClick={handleSimpan}
-                    disabled={saving}
-                    className="w-full bg-blue-700 hover:bg-blue-800 disabled:opacity-50 text-white font-medium px-4 py-2.5 rounded-lg text-sm transition-colors shadow-sm"
-                  >
-                    {saving ? 'Menyimpan ke Database...' : `Simpan ${soal.length} Soal ke Bank Soal`}
-                  </button>
-                </div>
-              )}
+                                  <div className="space-y-1.5 pt-1">
+                                    {s.opsi.map((o, oi) => (
+                                      <label key={o.label} className="flex items-center gap-2 cursor-pointer select-none">
+                                        <input
+                                          type="radio"
+                                          name={`soal-${s.nomor}-${mapelName}`}
+                                          checked={o.kunci}
+                                          onChange={() => toggleKunci(originalIdx, oi)}
+                                          className="accent-blue-700 w-3.5 h-3.5"
+                                        />
+                                        <span className={o.kunci ? 'font-semibold text-emerald-800' : 'text-slate-700'}>
+                                          {o.label}. {o.teks}
+                                        </span>
+                                        {o.kunci && <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded border border-emerald-300 ml-auto">KUNCI</span>}
+                                      </label>
+                                    ))}
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <button
+                      onClick={handleSimpan}
+                      disabled={saving}
+                      className="w-full bg-blue-700 hover:bg-blue-800 disabled:opacity-50 text-white font-medium px-4 py-2.5 rounded-lg text-sm transition-colors shadow-sm"
+                    >
+                      {saving ? 'Menyimpan ke Database...' : `Simpan ${soal.length} Soal ke Bank Soal`}
+                    </button>
+                  </div>
+                )
+              })()}
 
               {saved && (
                 <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg font-medium text-xs flex items-center justify-between">
@@ -343,9 +368,28 @@ export default function BankSoal() {
                 <div className="py-16 text-center text-xs text-slate-400">
                   Tidak ada soal yang cocok dengan filter atau belum ada soal di database.
                 </div>
-              ) : (
-                filteredQuestions.map((q, index) => (
-                  <div key={q.id} className="p-4 rounded-lg border border-slate-200 bg-slate-50/60 space-y-3">
+              ) : (() => {
+                const groupedDb = filteredQuestions.reduce((acc, q) => {
+                  const m = q.mapel || 'Umum'
+                  if (!acc[m]) acc[m] = []
+                  acc[m].push(q)
+                  return acc
+                }, {} as Record<string, QuestionItem[]>)
+
+                return (
+                  <div className="space-y-6">
+                    {Object.entries(groupedDb).map(([mapelName, items]) => (
+                      <div key={mapelName} className="space-y-3 bg-slate-50/70 p-4 rounded-lg border border-slate-200">
+                        <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                          <h3 className="font-bold text-slate-900 text-xs flex items-center gap-2">
+                            <span className="w-2.5 h-2.5 rounded-full bg-blue-700"></span>
+                            <span>MAPEL: {mapelName}</span>
+                            <span className="text-[11px] font-medium text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200">{items.length} Soal Tersimpan</span>
+                          </h3>
+                        </div>
+                        <div className="space-y-3">
+                          {items.map((q, index) => (
+                            <div key={q.id} className="p-4 rounded-lg border border-slate-200 bg-white space-y-3 shadow-xs">
                     {editingId === q.id ? (
                       /* Edit mode form */
                       <form onSubmit={saveEdit} className="space-y-3">
@@ -455,9 +499,14 @@ export default function BankSoal() {
                         </div>
                       </>
                     )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))
-              )}
+                )
+              })()}
             </div>
           </div>
         )}
