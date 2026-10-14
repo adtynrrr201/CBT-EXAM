@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import Navbar from '../components/Navbar'
 import { IconFileText, IconCheckCircle, IconRefresh } from '../components/Icons'
-import { fetchBankSoal, updateQuestion, QuestionItem } from '../api/client'
+import { fetchBankSoal, updateQuestion, getToken, QuestionItem } from '../api/client'
 import { parseDocxToSoal, ParsedSoal } from '../utils/docxParser'
 
 export default function BankSoal() {
@@ -79,7 +79,7 @@ export default function BankSoal() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token') || ''}`,
+            'Authorization': `Bearer ${getToken()}`,
           },
           body: JSON.stringify({
             mapel: s.mapel || 'Technical Support I',
