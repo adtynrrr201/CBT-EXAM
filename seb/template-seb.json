@@ -1,0 +1,7 @@
+{
+  "startURL": "https://cbt.sekolah/ujian/GANTI-UJIAN-ID?seb=1",
+  "allowList": ["cbt.sekolah"],
+  "requireFullscreen": true,
+  "configKeyHashHeader": "X-SafeExamBrowser-ConfigKeyHash",
+  "configKeyHash": "GANTI-DENGAN-seb_config_key-DARI-PUT-/ujian/:id/seb-config"
+}

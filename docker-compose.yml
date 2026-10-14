@@ -1,0 +1,36 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: cbt
+      POSTGRES_USER: cbt
+      POSTGRES_PASSWORD: cbt123
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/SCHEMA.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    ports:
+      - "5432:5432"
+
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgres://cbt:cbt123@postgres:5432/cbt?sslmode=disable
+      JWT_SECRET: ganti-di-production
+      STORAGE_PATH: /storage
+      PORT: 8080
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./storage:/storage
+    depends_on:
+      - postgres
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:

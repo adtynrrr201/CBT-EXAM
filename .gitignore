@@ -1,0 +1,27 @@
+# Go
+backend/bin/
+backend/*.exe
+.env
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# Storage & sync
+storage/hasil/*
+storage/sync/*
+!storage/hasil/README.md
+!storage/sync/README.md
+
+# DB & Docker volumes
+pgdata/
+*.tmp
+*.log
+/tmp/
+
+# Deepwork orchestrator state (local only)
+.slim/deepwork/
+
+# OS
+.DS_Store
+Thumbs.db
