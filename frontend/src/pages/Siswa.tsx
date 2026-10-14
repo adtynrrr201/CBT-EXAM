@@ -14,8 +14,50 @@ function parseWorkbook(workbook: XLSX.WorkBook) {
   const json = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as unknown[][]
   if (json.length === 0) return []
 
-  // Cari baris header atau asumsikan urutan kolom: [NIS, Nama, Kelas, JK, Password, TahunAjaran]
   const rows: unknown[] = []
+  
+  // Deteksi struktur multi-kolom horizontal (seperti file "List Nama Siswa Update 08 Oktober 2026.xlsx")
+  // Blok 1: Kelas X (Nama di col 1, NIS di col 2, JK di col 4)
+  // Blok 2: Kelas XI (Nama di col 7, NIS di col 8, JK di col 10)
+  // Blok 3: Kelas XII (Nama di col 13, NIS di col 14, JK di col 16)
+  let isMultiBlock = false
+  const headerRow = json[2] as unknown[]
+  if (headerRow && headerRow.length > 5) {
+    const hStr = headerRow.map(c => String(c || '').toLowerCase()).join(' ')
+    if (hStr.includes('nis') && hStr.includes('nama')) {
+      isMultiBlock = true
+    }
+  }
+
+  if (isMultiBlock) {
+    let lineNum = 1
+    const extractBlock = (nameIdx: number, nisIdx: number, jkIdx: number, kelasNama: string) => {
+      for (let i = 3; i < json.length; i++) {
+        const r = json[i]
+        if (!r) continue
+        const nama = r[nameIdx]
+        const nis = r[nisIdx]
+        let jk = r[jkIdx]
+        if (!nama || !nis) continue
+        const cleanJk = String(jk || '').trim().toUpperCase().startsWith('P') ? 'P' : 'L'
+        rows.push({
+          Line: lineNum++,
+          NIS: String(nis).trim(),
+          Nama: String(nama).trim(),
+          Kelas: kelasNama,
+          JenisKelamin: cleanJk,
+          Password: '123',
+          TahunAjaran: '2025/2026',
+        })
+      }
+    }
+    extractBlock(1, 2, 4, 'X-IPA-1')
+    extractBlock(7, 8, 10, 'XI-IPA-1')
+    extractBlock(13, 14, 16, 'XII-IPA-1')
+    return rows
+  }
+
+  // Format standar vertikal 1 kolom
   let startIndex = 0
   const firstRow = json[0]
   if (firstRow && firstRow.some(c => String(c).toLowerCase().includes('nis') || String(c).toLowerCase().includes('nama'))) {
@@ -27,10 +69,10 @@ function parseWorkbook(workbook: XLSX.WorkBook) {
     if (!r || r.length === 0) continue
     const nis = String(r[0] || '').trim()
     const nama = String(r[1] || '').trim()
-    const kelas = String(r[2] || '').trim()
+    const kelas = String(r[2] || '').trim() || 'X-IPA-1'
     let jk = String(r[3] || '').trim().toUpperCase().replace(/[^LP]/g, '')
     if (jk !== 'L' && jk !== 'P') jk = 'L'
-    const password = String(r[4] || '').trim()
+    const password = String(r[4] || '').trim() || '123'
     const tahunAjaran = String(r[5] || '').trim() || '2025/2026'
 
     if (!nis && !nama) continue
@@ -49,6 +91,9 @@ function parseWorkbook(workbook: XLSX.WorkBook) {
 
 export default function Siswa() {
   const [list, setList] = useState<Row[]>([])
+  const [selectedKelas, setSelectedKelas] = useState('Semua')
+  const daftarKelas = ['Semua', ...Array.from(new Set(list.map(s => s.kelas).filter(Boolean))).sort()]
+  const displayedList = list.filter(s => selectedKelas === 'Semua' || s.kelas === selectedKelas)
   const [valid, setValid] = useState<Row[]>([])
   const [gagal, setGagal] = useState<Invalid[]>([])
   const [rawRows, setRawRows] = useState<unknown[]>([])
@@ -154,8 +199,22 @@ export default function Siswa() {
         )}
 
         <div className="bg-white rounded-lg border border-slate-200">
-          <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-slate-900">Terdaftar ({list.length})</h2>
+          <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between flex-wrap gap-3">
+            <h2 className="text-sm font-semibold text-slate-900">
+              Terdaftar ({displayedList.length} dari {list.length} siswa)
+            </h2>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500 font-medium">Filter Kelas:</span>
+              <select
+                value={selectedKelas}
+                onChange={e => setSelectedKelas(e.target.value)}
+                className="text-xs text-slate-900 bg-white border border-slate-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-700"
+              >
+                {daftarKelas.map(k => (
+                  <option key={k} value={k}>{k}</option>
+                ))}
+              </select>
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
@@ -168,7 +227,7 @@ export default function Siswa() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 text-[13px] text-slate-900">
-                {list.map(s => (
+                {displayedList.map(s => (
                   <tr key={s.nis} className="hover:bg-slate-50/80">
                     <td className="px-5 py-2.5 text-xs tnum text-slate-500">{s.nis}</td>
                     <td className="px-3 py-2.5 font-medium text-slate-900">{s.nama}</td>
@@ -176,8 +235,8 @@ export default function Siswa() {
                     <td className="px-5 py-2.5 text-slate-500">{s.jk}</td>
                   </tr>
                 ))}
-                {list.length === 0 && (
-                  <tr><td colSpan={4} className="px-5 py-6 text-center text-[13px] text-slate-500">Belum ada data — upload CSV dulu.</td></tr>
+                {displayedList.length === 0 && (
+                  <tr><td colSpan={4} className="px-5 py-6 text-center text-[13px] text-slate-500">Tidak ada siswa pada kelas ini.</td></tr>
                 )}
               </tbody>
             </table>
