@@ -2,16 +2,14 @@ import { useState, useEffect } from 'react'
 import Navbar from '../components/Navbar'
 import { IconFileText, IconCheckCircle, IconRefresh } from '../components/Icons'
 import { fetchBankSoal, updateQuestion, QuestionItem } from '../api/client'
-import mammoth from 'mammoth'
-
-interface OpsiParsed { label: string; teks: string; kunci: boolean }
-interface SoalParsed { nomor: number; teks: string; tipe: string; opsi: OpsiParsed[]; status: 'ok' | 'perlu_perbaikan'; pesan?: string }
+import { parseDocxToSoal, ParsedSoal } from '../utils/docxParser'
 
 export default function BankSoal() {
   const [file, setFile] = useState<File | null>(null)
-  const [soal, setSoal] = useState<SoalParsed[] | null>(null)
+  const [soal, setSoal] = useState<ParsedSoal[] | null>(null)
   const [saved, setSaved] = useState(false)
   const [parsing, setParsing] = useState(false)
+  const [saving, setSaving] = useState(false)
 
   // Database questions state
   const [dbQuestions, setDbQuestions] = useState<QuestionItem[]>([])
@@ -49,54 +47,9 @@ export default function BankSoal() {
     setSaved(false)
     try {
       const arrayBuffer = await file.arrayBuffer()
-      const result = await mammoth.extractRawText({ arrayBuffer })
-      const text = result.value
-      const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
-
-      const parsedSoal: SoalParsed[] = []
-      let currentSoal: SoalParsed | null = null
-
-      for (const line of lines) {
-        // Deteksi awal soal (mis: "1.", "1)", "Soal 1:")
-        const qMatch = line.match(/^(\d+)[.)]\s+(.+)/)
-        if (qMatch) {
-          if (currentSoal) {
-            parsedSoal.push(currentSoal)
-          }
-          let qText = qMatch[2]
-          currentSoal = {
-            nomor: parseInt(qMatch[1], 10),
-            teks: qText,
-            tipe: 'PG',
-            opsi: [],
-            status: 'ok',
-          }
-          continue
-        }
-
-        // Deteksi opsi (mis: "A.", "A)", "a.", "a)")
-        const oMatch = line.match(/^([A-Da-d])[.)]\s+(.+)/)
-        if (oMatch && currentSoal) {
-          let label = oMatch[1].toUpperCase()
-          let oText = oMatch[2]
-          let isKunci = false
-          if (oText.endsWith('*')) {
-            isKunci = true
-            oText = oText.replace(/\*$/, '').trim()
-          }
-          currentSoal.opsi.push({
-            label,
-            teks: oText,
-            kunci: isKunci,
-          })
-        }
-      }
-      if (currentSoal) {
-        parsedSoal.push(currentSoal)
-      }
-
+      const parsedSoal = await parseDocxToSoal(arrayBuffer)
       if (parsedSoal.length === 0) {
-        alert('Tidak ada soal yang dikenali dari file .docx. Pastikan format sesuai template (1. Soal ... dan A. Opsi ...).')
+        alert('Tidak ada soal yang dikenali dari file .docx. Pastikan format nomor (1. ...) dan opsi (A. ...) sesuai.')
       } else {
         setSoal(parsedSoal)
       }
@@ -119,14 +72,9 @@ export default function BankSoal() {
 
   async function handleSimpan() {
     if (!soal || soal.length === 0) return
-    setSaved(true)
+    setSaving(true)
     try {
-      // Simpan satu per satu ke backend via endpoint PUT /questions/:id atau buat endpoint batch/single
-      // Karena endpoint /questions/:id sudah ada, kita bisa gunakan atau simulasi sukses & refresh
-      // Untuk implementasi nyata, kita kirim ke backend (kita bisa buat endpoint baru jika perlu atau pakai yg ada).
-      // Untuk kesederhanaan dan ketangguhan, kita kirim POST atau PUT.
       for (const s of soal) {
-        // Kirim soal baru ke backend (misal via POST /questions jika ada, atau PUT)
         await fetch('/api/v1/questions', {
           method: 'POST',
           headers: {
@@ -134,21 +82,21 @@ export default function BankSoal() {
             'Authorization': `Bearer ${localStorage.getItem('token') || ''}`,
           },
           body: JSON.stringify({
-            mapel: 'Matematika/Umum',
-            kelas: 'X-IPA-1',
-            tipe: s.tipe,
-            bobot: 10,
+            mapel: s.mapel || 'Technical Support I',
+            kelas: s.kelas || 'X-IPA-1',
+            tipe: s.tipe || 'PG',
+            bobot: s.bobot || 10,
             teks_html: s.teks,
             opsi: s.opsi.map(o => ({ label: o.label, teks_html: o.teks, is_kunci: o.kunci }))
           })
-        }).catch(() => {})
+        })
       }
       setSaved(true)
       loadDbQuestions()
     } catch (e) {
       alert('Gagal menyimpan ke database')
     } finally {
-      setSaved(false)
+      setSaving(false)
     }
   }
 
@@ -237,6 +185,7 @@ export default function BankSoal() {
                       <div key={s.nomor} className="p-3 rounded-lg border bg-slate-50 border-slate-200 text-xs">
                         <div className="flex items-center justify-between">
                           <span className="font-semibold bg-white text-slate-700 px-2 py-0.5 rounded border border-slate-200 tnum">Soal #{s.nomor}</span>
+                          <span className="text-slate-500">{s.mapel} ({s.kelas})</span>
                         </div>
                         <p className="font-medium text-slate-900 mt-2">{s.teks}</p>
 
@@ -263,9 +212,10 @@ export default function BankSoal() {
 
                   <button
                     onClick={handleSimpan}
-                    className="w-full bg-blue-700 hover:bg-blue-800 text-white font-medium px-4 py-2 rounded-lg text-sm transition-colors shadow-sm"
+                    disabled={saving}
+                    className="w-full bg-blue-700 hover:bg-blue-800 disabled:opacity-50 text-white font-medium px-4 py-2 rounded-lg text-sm transition-colors shadow-sm"
                   >
-                    Simpan ke Bank Soal
+                    {saving ? 'Menyimpan ke Database...' : `Simpan ${soal.length} Soal ke Bank Soal`}
                   </button>
                 </div>
               )}
