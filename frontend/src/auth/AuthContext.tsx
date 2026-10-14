@@ -6,6 +6,7 @@ interface AuthContextType {
   ready: boolean
   signIn: (u: string, p: string, dev: string, force?: boolean) => Promise<void>
   signOut: () => void
+  refreshUser: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
@@ -78,8 +79,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null)
   }
 
+  async function refreshUser() {
+    try {
+      const profile = await me()
+      setUser(profile)
+      const raw = localStorage.getItem(SESSION_KEY)
+      if (raw) {
+        const session = JSON.parse(raw)
+        session.user = profile
+        localStorage.setItem(SESSION_KEY, JSON.stringify(session))
+      }
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
   return (
-    <AuthContext.Provider value={{ user, ready, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, ready, signIn, signOut, refreshUser }}>
       {children}
     </AuthContext.Provider>
   )
