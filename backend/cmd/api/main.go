@@ -35,7 +35,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("FATAL: koneksi DB gagal: %v", err)
 	}
-	cbtDB.Seed(conn)
+	// cbtDB.Seed(conn)
 	audit.Migrate(conn)
 	// SEB: kolom kunci config per ujian (require_seb sudah ada sejak awal).
 	_, _ = conn.Exec(`ALTER TABLE ujian ADD COLUMN IF NOT EXISTS seb_config_key TEXT DEFAULT ''`)
