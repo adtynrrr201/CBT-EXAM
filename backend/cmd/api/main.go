@@ -724,6 +724,70 @@ func main() {
 		audit.Log(conn, fmt.Sprintf("%v", actor), "create_user", in.Username)
 	})
 
+	// Buat soal baru ke database (admin, guru)
+	v1.POST("/questions", middleware.RequireRole("admin", "guru"), func(c *gin.Context) {
+		var in struct {
+			Mapel    string `json:"mapel"`
+			Kelas    string `json:"kelas"`
+			Tipe     string `json:"tipe"`
+			TeksHTML string `json:"teks_html"`
+			Bobot    int    `json:"bobot"`
+			Opsi     []struct {
+				Label    string `json:"label"`
+				TeksHTML string `json:"teks_html"`
+				IsKunci  bool   `json:"is_kunci"`
+			} `json:"opsi"`
+		}
+		if err := c.ShouldBindJSON(&in); err != nil {
+			c.JSON(400, gin.H{"error": gin.H{"code": "BAD_REQUEST", "message": err.Error()}})
+			return
+		}
+		if in.Bobot <= 0 {
+			in.Bobot = 10
+		}
+		if in.Tipe == "" {
+			in.Tipe = "PG"
+		}
+		if in.Mapel == "" {
+			in.Mapel = "Technical Support I"
+		}
+		if in.Kelas == "" {
+			in.Kelas = "X-IPA-1"
+		}
+
+		tx, err := conn.Begin()
+		if err != nil {
+			c.JSON(500, gin.H{"error": gin.H{"code": "INTERNAL", "message": err.Error()}})
+			return
+		}
+		defer tx.Rollback()
+
+		var qid string
+		err = tx.QueryRow(`INSERT INTO questions(mapel, kelas, tipe, teks_html, bobot)
+			VALUES($1, $2, $3, $4, $5) RETURNING id`,
+			in.Mapel, in.Kelas, in.Tipe, in.TeksHTML, in.Bobot).Scan(&qid)
+		if err != nil {
+			c.JSON(500, gin.H{"error": gin.H{"code": "DB_ERROR", "message": err.Error()}})
+			return
+		}
+
+		for _, o := range in.Opsi {
+			_, err = tx.Exec(`INSERT INTO question_options(question_id, label, teks_html, is_kunci)
+				VALUES($1, $2, $3, $4)`, qid, o.Label, o.TeksHTML, o.IsKunci)
+			if err != nil {
+				c.JSON(500, gin.H{"error": gin.H{"code": "DB_ERROR", "message": err.Error()}})
+				return
+			}
+		}
+
+		if err := tx.Commit(); err != nil {
+			c.JSON(500, gin.H{"error": gin.H{"code": "INTERNAL", "message": err.Error()}})
+			return
+		}
+
+		c.JSON(201, gin.H{"ok": true, "id": qid})
+	})
+
 	// Ambil daftar semua soal beserta opsi dan kunci jawabannya dari DB (admin, guru)
 	v1.GET("/questions", middleware.RequireRole("admin", "guru"), func(c *gin.Context) {
 		type optItem struct {
