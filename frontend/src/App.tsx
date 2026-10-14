@@ -4,6 +4,8 @@ import { ProtectedRoute } from './auth/ProtectedRoute'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Siswa from './pages/Siswa'
+import Pengaturan from './pages/Pengaturan'
+import AuditLog from './pages/AuditLog'
 import BankSoal from './pages/BankSoal'
 import Ujian from './pages/Ujian'
 import ExecUjian from './pages/ExecUjian'
@@ -63,6 +65,8 @@ function Shell() {
           
           {/* Admin & Guru routes */}
           <Route path="/siswa" element={<ProtectedRoute roles={['admin', 'guru']}><Siswa /></ProtectedRoute>} />
+          <Route path="/pengaturan" element={<ProtectedRoute roles={['admin']}><Pengaturan /></ProtectedRoute>} />
+          <Route path="/audit-log" element={<ProtectedRoute roles={['admin']}><AuditLog /></ProtectedRoute>} />
           <Route path="/soal" element={<ProtectedRoute roles={['admin', 'guru']}><BankSoal /></ProtectedRoute>} />
           <Route path="/ujian-baru" element={<ProtectedRoute roles={['admin', 'guru']}><Ujian /></ProtectedRoute>} />
           <Route path="/hasil" element={<ProtectedRoute roles={['admin', 'guru']}><Hasil /></ProtectedRoute>} />

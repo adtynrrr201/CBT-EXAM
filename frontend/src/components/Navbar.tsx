@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   IconDashboard, IconUsers, IconBookOpen, IconPlus,
-  IconMonitor, IconAward, IconLogOut
+  IconMonitor, IconAward, IconLogOut, IconSettings, IconFileText
 } from './Icons'
 import { useAuth } from '../auth/AuthContext'
 import React from 'react'
