@@ -2,30 +2,49 @@ import { useEffect, useState } from 'react'
 import Navbar from '../components/Navbar'
 import { fetchSiswa, previewSiswa, confirmSiswa } from '../api/client'
 import { IconUpload, IconDownload, IconCheckCircle } from '../components/Icons'
+import * as XLSX from 'xlsx'
 
 interface Row { nis: string; nama: string; kelas: string; jk: string }
 interface Invalid { nama: string; line: number; alasan: string }
 
-function parseCSV(text: string) {
-  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
-  if (lines.length === 0) return []
-  const first = lines[0].toLowerCase()
-  const hasHeader = first.includes('nis') && first.includes('nama')
-  const body = hasHeader ? lines.slice(1) : lines
-  return body.map((ln, i) => {
-    const c = ln.split(',').map(s => s.trim())
-    let jk = (c[3] || '').toUpperCase().replace(/[^LP]/g, '')
+function parseWorkbook(workbook: XLSX.WorkBook) {
+  const sheetName = workbook.SheetNames[0]
+  if (!sheetName) return []
+  const sheet = workbook.Sheets[sheetName]
+  const json = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as unknown[][]
+  if (json.length === 0) return []
+
+  // Cari baris header atau asumsikan urutan kolom: [NIS, Nama, Kelas, JK, Password, TahunAjaran]
+  const rows: unknown[] = []
+  let startIndex = 0
+  const firstRow = json[0]
+  if (firstRow && firstRow.some(c => String(c).toLowerCase().includes('nis') || String(c).toLowerCase().includes('nama'))) {
+    startIndex = 1
+  }
+
+  for (let i = startIndex; i < json.length; i++) {
+    const r = json[i]
+    if (!r || r.length === 0) continue
+    const nis = String(r[0] || '').trim()
+    const nama = String(r[1] || '').trim()
+    const kelas = String(r[2] || '').trim()
+    let jk = String(r[3] || '').trim().toUpperCase().replace(/[^LP]/g, '')
     if (jk !== 'L' && jk !== 'P') jk = 'L'
-    return {
-      Line: (hasHeader ? i + 2 : i + 1),
-      NIS: c[0] || '',
-      Nama: c[1] || '',
-      Kelas: c[2] || '',
+    const password = String(r[4] || '').trim()
+    const tahunAjaran = String(r[5] || '').trim() || '2025/2026'
+
+    if (!nis && !nama) continue
+    rows.push({
+      Line: i + 1,
+      NIS: nis,
+      Nama: nama,
+      Kelas: kelas,
       JenisKelamin: jk,
-      Password: c[4] || '',
-      TahunAjaran: c[5] || '2025/2026',
-    }
-  })
+      Password: password,
+      TahunAjaran: tahunAjaran,
+    })
+  }
+  return rows
 }
 
 export default function Siswa() {
@@ -49,16 +68,21 @@ export default function Siswa() {
   async function handleFile(f: File | undefined) {
     if (!f) return
     setErr(''); setMsg('')
-    if (/\.xlsx?$/.test(f.name)) {
-      setErr('File .xlsx belum diparse langsung — buka di Excel lalu Save As CSV, upload file CSV-nya.')
-      return
-    }
-    const text = await f.text()
-    const rows = parseCSV(text)
-    if (rows.length === 0) { setErr('File kosong / format tidak dikenali. Unduh template dulu.'); return }
-    setRawRows(rows)
     setLoading(true)
     try {
+      let rows: unknown[] = []
+      if (/\.xlsx?$/.test(f.name)) {
+        const data = await f.arrayBuffer()
+        const wb = XLSX.read(data, { type: 'array' })
+        rows = parseWorkbook(wb)
+      } else {
+        const text = await f.text()
+        const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
+        const wb = XLSX.read(lines.join('\n'), { type: 'string' })
+        rows = parseWorkbook(wb)
+      }
+      if (rows.length === 0) { setErr('File kosong / format tidak dikenali. Unduh template dulu.'); setLoading(false); return }
+      setRawRows(rows)
       const res = await previewSiswa(rows)
       setValid((res.valid || []).map(v => ({ nis: v.NIS, nama: v.Nama, kelas: v.Kelas, jk: v.JenisKelamin })))
       setGagal((res.invalid || []).map(g => ({ nama: g.Row?.Nama || '-', line: g.Row?.Line || 0, alasan: g.Reason })))
@@ -89,16 +113,16 @@ export default function Siswa() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white px-5 py-4 rounded-lg border border-slate-200">
           <div>
             <h1 className="text-xl font-semibold tracking-tight text-slate-900">Siswa</h1>
-            <p className="text-[13px] text-slate-500 mt-0.5">Upload CSV (dari Excel) → preview validasi → konfirmasi masuk DB.</p>
+            <p className="text-[13px] text-slate-500 mt-0.5">Upload file Excel (.xlsx / .xls) atau CSV → preview validasi → konfirmasi masuk DB.</p>
           </div>
           <div className="flex items-center gap-2">
             <a href="/api/v1/siswa/template" className="flex items-center gap-1.5 border border-slate-200 hover:border-slate-300 text-slate-700 text-[13px] font-medium px-3 py-2 rounded-lg bg-white" download>
               <IconDownload className="w-3.5 h-3.5" />
-              <span>Template CSV</span>
+              <span>Template CSV/Excel</span>
             </a>
             <label className="flex items-center gap-1.5 bg-blue-700 hover:bg-blue-800 text-white text-[13px] font-medium px-3 py-2 rounded-lg cursor-pointer">
               <IconUpload className="w-3.5 h-3.5" />
-              <span>{loading ? 'Memproses…' : 'Pilih CSV'}</span>
+              <span>{loading ? 'Memproses…' : 'Pilih File Excel/CSV'}</span>
               <input type="file" accept=".csv,.txt,.xlsx,.xls" className="hidden" onChange={e => handleFile(e.target.files?.[0])} />
             </label>
           </div>
