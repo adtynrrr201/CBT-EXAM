@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import Navbar from '../components/Navbar'
-import { createUjian } from '../api/client'
+import { createUjian, fetchBankSoal, fetchSiswa } from '../api/client'
 import { IconCheckCircle } from '../components/Icons'
 
 const MAPEL = ['IPA', 'IPS', 'Matematika', 'Bahasa Indonesia', 'Bahasa Inggris']
@@ -31,6 +31,24 @@ export default function Ujian() {
 
   const [info, setInfo] = useState<Info>(() => draft?.info ?? { judul: 'UAS IPA Semester 1', mapel: MAPEL[0], durasi: 90, kelas: ['XII-IPA-1'] })
   const [soal, setSoal] = useState<SoalPick>(() => draft?.soal ?? { jumlah: 50, acakSoal: true, acakOpsi: true })
+  const [totalBankSoal, setTotalBankSoal] = useState(0)
+  const [dbKelasList, setDbKelasList] = useState<string[]>(['X-IPA-1', 'XI-IPA-1', 'XII-IPA-1'])
+
+  useEffect(() => {
+    fetchBankSoal().then(r => {
+      const len = (r.questions || []).length
+      setTotalBankSoal(len)
+      if (len > 0 && soal.jumlah === 50) {
+        setSoal(prev => ({ ...prev, jumlah: len }))
+      }
+    }).catch(() => {})
+    fetchSiswa().then(r => {
+      const setK = new Set((r.siswa || []).map(s => s.kelas).filter(Boolean))
+      if (setK.size > 0) {
+        setDbKelasList(Array.from(setK).sort())
+      }
+    }).catch(() => {})
+  }, [])
   const [policy, setPolicy] = useState<Policy>(() => draft?.policy ?? {
     require_seb: false, require_fullscreen: true,
     max_focus_lost_warn: 3, max_focus_lost_autosubmit: 5,
@@ -166,7 +184,7 @@ export default function Ujian() {
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-2">Pilih Kelas Peserta</label>
                 <div className="flex gap-3 flex-wrap">
-                  {KELAS.map(k => (
+                  {dbKelasList.map(k => (
                     <label key={k} className="flex items-center gap-2 px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg text-xs font-medium cursor-pointer text-slate-900">
                       <input
                         type="checkbox"
@@ -185,18 +203,25 @@ export default function Ujian() {
           {/* Step 1: Soal */}
           {step === 1 && (
             <div className="space-y-4">
+              <div className="p-3 bg-blue-50 border border-blue-200 text-blue-900 rounded-lg text-xs flex items-center justify-between">
+                <span>Total soal tersedia di Bank Soal database:</span>
+                <span className="font-bold text-sm tnum">{totalBankSoal} soal</span>
+              </div>
               <p className="text-[13px] text-slate-600">
-                Soal akan di-generate otomatis dari Bank Soal <b>{info.mapel}</b>.
+                Soal akan di-generate otomatis dari Bank Soal (tersedia {totalBankSoal} butir soal).
               </p>
 
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Jumlah Soal Dipilih</label>
                 <input
                   type="number"
+                  max={totalBankSoal}
+                  min={1}
                   value={soal.jumlah}
                   onChange={e => setSoal({ ...soal, jumlah: +e.target.value })}
                   className="w-32 bg-white border border-slate-200 rounded-lg px-4 py-2 text-sm font-mono focus:outline-none focus:border-blue-700 text-slate-900 tnum"
                 />
+                <p className="text-[11px] text-slate-400 mt-1">Maksimal {totalBankSoal} soal sesuai yang diunggah di Bank Soal.</p>
               </div>
 
               <div className="space-y-2 pt-2">
